@@ -22,6 +22,8 @@ def validate_transpose(exp):
     input_indices, output_indices = exp.split('->')
     input_indices = input_indices.split(',')[0]
     output_indices = output_indices.strip()
+    if len(output_indices) == 1:
+        return False
     return input_indices == output_indices[::-1]
 
 
@@ -32,7 +34,21 @@ def validate_diagonal_sum(exp):
     input_indices, output_indices = exp.split('->')
     input_indices = input_indices.split(',')[0]
     output_indices = output_indices.strip()
+    if len(output_indices) == len(input_indices) == 1:
+        return False
     return input_indices[1] == input_indices[0] and len(output_indices) == 0
+
+
+def validate_sum(exp):
+    if "->" not in exp:
+        print("Output missing! ")
+        return False
+    input_indices, output_indices = exp.split('->')
+    input_indices = input_indices.split(',')[0]
+    output_indices = output_indices.strip()
+    return (len(input_indices) == 2 and
+            len(output_indices) == 0 and
+            len(input_indices) == len((set(input_indices))))
 
 
 def validate_row_sum(exp):
@@ -42,4 +58,6 @@ def validate_row_sum(exp):
     input_indices, output_indices = exp.split('->')
     input_indices = input_indices.split(',')[0]
     output_indices = output_indices.strip()
+    if len(input_indices) == 1:
+        return False
     return input_indices[1] == input_indices[0] and output_indices == input_indices[0]
