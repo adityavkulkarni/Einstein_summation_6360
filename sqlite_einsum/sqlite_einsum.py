@@ -3,6 +3,7 @@ import time
 
 import numpy as np
 from sqlite_handler import SQLiteHandler
+from einstein_notation_parsing import *
 
 
 class EinsteinNotation:
@@ -22,6 +23,9 @@ class EinsteinNotation:
         self._matrix_multiplication_query = ("SELECT {A}.i AS i, {B}.j AS j, SUM({B}.val * {A}.val) AS val "
                                              "FROM {Ai}, {B} WHERE {B}.i={A}.j GROUP BY {A}.i, {B}.j "
                                              "ORDER BY i, j")
+        self._matrix_transpose_query = ("SELECT {A}.j AS i, {A}.i AS j, SUM({A}.val) AS val "
+                                        "FROM {A} GROUP BY {A}.j, {A}.i ORDER BY i, j")
+        self._matrix_diagonal_query = "SELECT SUM({A}.val) AS val FROM {A} WHERE {A}.i={A}.j"
 
     def create_2d_tensor(self, name, tensor):
         self.delete_tensor(name)
@@ -53,25 +57,36 @@ class EinsteinNotation:
             print(f"Less than 2 operands")
             return
         if len(operands) >= 2:
-            """tensor, run_time = self._sqlite.fetch_all_rows(
-                self._matrix_multiplication_query.format(A=operands[0],
-                                                         Ai=operands[0],
-                                                         B=operands[1]))
-            return self._2d_tensor_to_matrix(tensor), run_time"""
-        k = [self._matrix_multiplication_query.format(A=operands[0],
-                                                      Ai=operands[0],
-                                                      B=operands[1])]
-        for i in range(2, len(operands)):
-            k.append(self._matrix_multiplication_query.format(A=f"K{i-2}",
-                                                              Ai=f"({k[i-2]}) as K{i - 2}",
-                                                              B=operands[i]))
-        tensor, run_time = self._sqlite.fetch_all_rows(k[-1])
+            k = [self._matrix_multiplication_query.format(A=operands[0],
+                                                          Ai=operands[0],
+                                                          B=operands[1])]
+            for i in range(2, len(operands)):
+                k.append(self._matrix_multiplication_query.format(A=f"K{i-2}",
+                                                                  Ai=f"({k[i-2]}) as K{i - 2}",
+                                                                  B=operands[i]))
+            tensor, run_time = self._sqlite.fetch_all_rows(k[-1])
+            return self._2d_tensor_to_matrix(tensor), run_time
+
+    def _transpose(self, operand):
+        tensor, run_time = self._sqlite.fetch_all_rows(
+            self._matrix_transpose_query.format(A=operand))
         return self._2d_tensor_to_matrix(tensor), run_time
 
+    def _get_diagonal_sum(self, operand):
+        tensor, run_time = self._sqlite.fetch_all_rows(
+            self._matrix_diagonal_query.format(A=operand))
+        return tensor[0][0], run_time
+
     def einstein_notation(self, operation, operands):
-        if self._validate_matrix_multiplication(operation, operands):
+        if isinstance(operands, list) and validate_matrix_multiplication(operation, operands):
             print(f"Matrix multiplication on: {','.join(operands)}")
             return self._matrix_multiplication(operands)
+        elif validate_transpose(operation):
+            print(f"Matrix transpose on: {operands}")
+            return self._transpose(operands)
+        elif validate_diagonal_sum(operation):
+            print(f"Get diagonal sum of: {operands}")
+            return self._get_diagonal_sum(operands)
         else:
             print("Unsupported operation\nCheck Einstein Notation/ Number of operands")
             return False, 0
@@ -84,23 +99,6 @@ class EinsteinNotation:
         for t in tensor:
             matrix[t[0]][t[1]] = int(t[2]) if self._int else t[2]
         return matrix
-
-    @staticmethod
-    def _validate_matrix_multiplication(exp, ope):
-        input_indices, output_indices = exp.split('->')
-        input_indices = input_indices.split(',')
-        output_indices = output_indices.strip()
-        pred_output = f"{input_indices[0][0]}{input_indices[-1][-1]}"
-        if len(input_indices) != len(ope):
-            return False
-        if pred_output != output_indices:
-            return False
-        for ind in range(len(input_indices)):
-            if ind:
-                if nxt_i != input_indices[ind][0]:
-                    return False
-            nxt_i = input_indices[ind][1]
-        return True
 
 
 def generate_random_matrix(i, j):
@@ -121,6 +119,7 @@ if __name__ == "__main__":
     H = generate_random_matrix(9, 10)
     I = generate_random_matrix(10, 11)
     J = generate_random_matrix(11, 12)
+    Z = generate_random_matrix(500, 500)
 
     # Tensor creation
     es.create_2d_tensor("A", A)
@@ -133,22 +132,48 @@ if __name__ == "__main__":
     es.create_2d_tensor("H", H)
     es.create_2d_tensor("I", I)
     es.create_2d_tensor("J", J)
+    es.create_2d_tensor("Z", Z)
 
     # Matrix multiplication
     e = "ij,jk,kl,lm,mn,no,op,pq,qr,rs->is"
     tables = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
     result, rt = es.einstein_notation(e, tables)
-    if result:
-        for table in tables:
-            print(f"{table}: {es.get_tensor(table)}")
-        print(f"SQLite Result: {result}")
-        start_time = time.time()
-        np_result = np.einsum(e, A, B, C, D, E, F, G, H, I, J)
-        end_time = time.time()
-        print(f"Numpy Result: {np_result.tolist()}")
-        print(f"SQLite time: {rt}")
-        print(f"Numpy Time: {format(end_time - start_time, '.5f')}")
-        print(f"Validation: {all(all(element for element in row) for row in result == np_result)}")
+    """for table in tables:
+        print(f"{table}: {es.get_tensor(table)}")"""
+    start_time = time.time()
+    np_result = np.einsum(e, A, B, C, D, E, F, G, H, I, J)
+    end_time = time.time()
+    # print(f"SQLite Result: {result}")
+    # print(f"Numpy  Result: {np_result.tolist()}")
+    print(f"SQLite Time: {rt}")
+    print(f"Numpy  Time: {format(end_time - start_time, '.5f')}")
+    print(f"Validation: {all(all(element for element in row) for row in result == np_result)}")
+    print("-------------------------------")
+    # Transpose
+    e = "ij->ji"
+    result, rt = es.einstein_notation(e, "J")
+    start_time = time.time()
+    np_result = np.einsum(e, J)
+    end_time = time.time()
+    # print(f"J: {es.get_tensor('J')}")
+    # print(f"SQLite Result: {result}")
+    # print(f"Numpy  Result: {np_result.tolist()}")
+    print(f"SQLite Time: {rt}")
+    print(f"Numpy  Time: {format(end_time - start_time, '.5f')}")
+    print(f"Validation: {all(all(element for element in row) for row in result == np_result)}")
+    print("-------------------------------")
+    # Diagonal
+    e = "ii->"
+    result, rt = es.einstein_notation(e, "Z")
+    start_time = time.time()
+    np_result = np.einsum(e, Z)
+    end_time = time.time()
+    # print(f"I: {es.get_tensor('Z')}")
+    print(f"SQLite Result: {result}")
+    print(f"Numpy  Result: {np_result.tolist()}")
+    print(f"SQLite Time: {rt}")
+    print(f"Numpy  Time: {format(end_time - start_time, '.5f')}")
+    print(f"Validation: {int(result) == int(np_result)}")
 
-        for table in tables:
-            es.delete_tensor(table)
+    for table in tables:
+        es.delete_tensor(table)
