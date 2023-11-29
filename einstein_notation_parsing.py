@@ -17,6 +17,7 @@ def validate_matrix_multiplication(exp, ope):
 
 def validate_transpose(exp):
     if '->' not in exp:
+        print("Output missing! ")
         return False
     input_indices, output_indices = exp.split('->')
     input_indices = input_indices.split(',')[0]
@@ -28,4 +29,17 @@ def validate_diagonal_sum(exp):
     if "->" not in exp:
         print("Output missing! ")
         return False
-    return exp[1] == exp[0]
+    input_indices, output_indices = exp.split('->')
+    input_indices = input_indices.split(',')[0]
+    output_indices = output_indices.strip()
+    return input_indices[1] == input_indices[0] and len(output_indices) == 0
+
+
+def validate_row_sum(exp):
+    if "->" not in exp:
+        print("Output missing! ")
+        return False
+    input_indices, output_indices = exp.split('->')
+    input_indices = input_indices.split(',')[0]
+    output_indices = output_indices.strip()
+    return input_indices[1] == input_indices[0] and output_indices == input_indices[0]
