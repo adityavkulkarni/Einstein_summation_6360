@@ -9,7 +9,7 @@ from einstein_notation_parsing import *
 class EinsteinNotation:
     def __init__(self, int_only=False):
         self._int = int_only
-        self._sqlite = SQLiteHandler("einsum.db")
+        self._sqlite = SQLiteHandler(db_name="./sqlite_einsum/einsum.db")
         self._create_2d_tensor_query = ("CREATE TABLE {name} "
                                         "(i INT, j INT, val DOUBLE);")
         self._insert_2d_tensor_query = ("INSERT INTO {name} "
@@ -26,6 +26,8 @@ class EinsteinNotation:
         self._matrix_transpose_query = ("SELECT {A}.j AS i, {A}.i AS j, SUM({A}.val) AS val "
                                         "FROM {A} GROUP BY {A}.j, {A}.i ORDER BY i, j")
         self._matrix_diagonal_query = "SELECT SUM({A}.val) AS val FROM {A} WHERE {A}.i={A}.j"
+        self._matrix_row_sum_query = "SELECT i AS i, SUM(val) AS val FROM {A} WHERE i=j GROUP BY i ORDER BY i"
+        self._matrix_sum_query = "SELECT SUM({A}.val) AS val FROM {A}"
 
     def create_2d_tensor(self, name, tensor):
         self.delete_tensor(name)
@@ -77,19 +79,43 @@ class EinsteinNotation:
             self._matrix_diagonal_query.format(A=operand))
         return tensor[0][0], run_time
 
+    def _get_row_sum(self, operand):
+        tensor, run_time = self._sqlite.fetch_all_rows(
+            self._matrix_row_sum_query.format(A=operand))
+        return self._1d_tensor_to_matrix(tensor), run_time
+
+    def _get_sum(self, operand):
+        tensor, run_time = self._sqlite.fetch_all_rows(
+            self._matrix_sum_query.format(A=operand))
+        return tensor[0][0], run_time
+
     def einstein_notation(self, operation, operands):
         if isinstance(operands, list) and validate_matrix_multiplication(operation, operands):
             print(f"Matrix multiplication on: {','.join(operands)}")
             return self._matrix_multiplication(operands)
+        elif validate_sum(operation):
+            print(f"Get sum of: {operands}")
+            return self._get_sum(operands)
         elif validate_transpose(operation):
             print(f"Matrix transpose on: {operands}")
             return self._transpose(operands)
         elif validate_diagonal_sum(operation):
             print(f"Get diagonal sum of: {operands}")
             return self._get_diagonal_sum(operands)
+        elif validate_row_sum(operation):
+            print(f"Get row wise sum of: {operands}")
+            return self._get_row_sum(operands)
         else:
             print("Unsupported operation\nCheck Einstein Notation/ Number of operands")
             return False, 0
+
+    def _1d_tensor_to_matrix(self, tensor):
+        max_i = max(t[0] for t in tensor) + 1
+
+        matrix = [0 for _ in range(max_i)]
+        for t in tensor:
+            matrix[t[0]] = int(t[1]) if self._int else t[1]
+        return matrix
 
     def _2d_tensor_to_matrix(self, tensor):
         max_i = max(t[0] for t in tensor) + 1
@@ -109,17 +135,17 @@ if __name__ == "__main__":
     es = EinsteinNotation(int_only=True)
 
     # Matrix generation
-    A = generate_random_matrix(2, 3)
-    B = generate_random_matrix(3, 4)
-    C = generate_random_matrix(4, 5)
-    D = generate_random_matrix(5, 6)
-    E = generate_random_matrix(6, 7)
-    F = generate_random_matrix(7, 8)
-    G = generate_random_matrix(8, 9)
-    H = generate_random_matrix(9, 10)
-    I = generate_random_matrix(10, 11)
-    J = generate_random_matrix(11, 12)
-    Z = generate_random_matrix(500, 500)
+    A = generate_random_matrix(5, 5)
+    B = generate_random_matrix(5, 6)
+    C = generate_random_matrix(6, 6)
+    D = generate_random_matrix(6, 5)
+    E = generate_random_matrix(5, 5)
+    F = generate_random_matrix(5, 7)
+    G = generate_random_matrix(7, 7)
+    H = generate_random_matrix(7, 5)
+    I = generate_random_matrix(5, 5)
+    J = generate_random_matrix(5, 5)
+    Z = generate_random_matrix(15, 15)
 
     # Tensor creation
     es.create_2d_tensor("A", A)
@@ -133,7 +159,7 @@ if __name__ == "__main__":
     es.create_2d_tensor("I", I)
     es.create_2d_tensor("J", J)
     es.create_2d_tensor("Z", Z)
-
+    print("-------------------------------")
     # Matrix multiplication
     e = "ij,jk,kl,lm,mn,no,op,pq,qr,rs->is"
     tables = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
@@ -151,9 +177,9 @@ if __name__ == "__main__":
     print("-------------------------------")
     # Transpose
     e = "ij->ji"
-    result, rt = es.einstein_notation(e, "J")
+    result, rt = es.einstein_notation(e, "Z")
     start_time = time.time()
-    np_result = np.einsum(e, J)
+    np_result = np.einsum(e, Z)
     end_time = time.time()
     # print(f"J: {es.get_tensor('J')}")
     # print(f"SQLite Result: {result}")
@@ -162,7 +188,7 @@ if __name__ == "__main__":
     print(f"Numpy  Time: {format(end_time - start_time, '.5f')}")
     print(f"Validation: {all(all(element for element in row) for row in result == np_result)}")
     print("-------------------------------")
-    # Diagonal
+    # Diagonal Sum
     e = "ii->"
     result, rt = es.einstein_notation(e, "Z")
     start_time = time.time()
@@ -174,6 +200,31 @@ if __name__ == "__main__":
     print(f"SQLite Time: {rt}")
     print(f"Numpy  Time: {format(end_time - start_time, '.5f')}")
     print(f"Validation: {int(result) == int(np_result)}")
-
+    print("-------------------------------")
+    # Row wise sum
+    e = "ii->i"
+    result, rt = es.einstein_notation(e, "Z")
+    start_time = time.time()
+    np_result = np.einsum(e, Z)
+    end_time = time.time()
+    # print(f"I: {es.get_tensor('Z')}")
+    print(f"SQLite Result: {result}")
+    print(f"Numpy  Result: {np_result.tolist()}")
+    print(f"SQLite Time: {rt}")
+    print(f"Numpy  Time: {format(end_time - start_time, '.5f')}")
+    print(f"Validation: {all(row for row in result == np_result)}")
+    print("-------------------------------")
+    # Sum of Matrix
+    e = "ij->"
+    result, rt = es.einstein_notation(e, "Z")
+    start_time = time.time()
+    np_result = np.einsum(e, Z)
+    end_time = time.time()
+    # print(f"I: {es.get_tensor('Z')}")
+    print(f"SQLite Result: {result}")
+    print(f"Numpy  Result: {np_result.tolist()}")
+    print(f"SQLite Time: {rt}")
+    print(f"Numpy  Time: {format(end_time - start_time, '.5f')}")
+    print(f"Validation: {int(result) == int(np_result)}")
     for table in tables:
         es.delete_tensor(table)

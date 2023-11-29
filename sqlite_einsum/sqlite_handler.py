@@ -43,8 +43,8 @@ class SQLiteHandler:
         if rows:
             for row in rows:
                 self._log(row)
-        self._log(f"--- {format(end_time - start_time, '.2f')} seconds ---\n")
-        return rows, format(end_time - start_time, '.2f')
+        self._log(f"--- {format(end_time - start_time, '.5f')} seconds ---\n")
+        return rows, format(end_time - start_time, '.5f')
 
     def close_connection(self):
         self.connection.close()
