@@ -2,7 +2,6 @@ import random
 import time
 
 import numpy as np
-
 from sqlite_handler import SQLiteHandler
 
 
@@ -21,7 +20,7 @@ class EinsteinNotation:
         self._select_query = "SELECT * FROM {name};"
         self._delete_query = "DROP TABLE {name};"
         self._matrix_multiplication_query = ("SELECT {A}.i AS i, {B}.j AS j, SUM({B}.val * {A}.val) AS val "
-                                             "FROM {B}, {A} WHERE {B}.i={A}.j GROUP BY {A}.i, {B}.j "
+                                             "FROM {Ai}, {B} WHERE {B}.i={A}.j GROUP BY {A}.i, {B}.j "
                                              "ORDER BY i, j")
 
     def create_2d_tensor(self, name, tensor):
@@ -53,17 +52,29 @@ class EinsteinNotation:
         if len(operands) < 2:
             print(f"Less than 2 operands")
             return
-        if len(operands) == 2:
-            tensor, run_time = self._sqlite.fetch_all_rows(
-                self._matrix_multiplication_query.format(A=operands[0], B=operands[1]))
-            print(f" --- {run_time} seconds --- ")
-            return self._2d_tensor_to_matrix(tensor)
-        k1 = self._matrix_multiplication_query.format(A=operands[0], B=operands[1])
+        if len(operands) >= 2:
+            """tensor, run_time = self._sqlite.fetch_all_rows(
+                self._matrix_multiplication_query.format(A=operands[0],
+                                                         Ai=operands[0],
+                                                         B=operands[1]))
+            return self._2d_tensor_to_matrix(tensor), run_time"""
+        k = [self._matrix_multiplication_query.format(A=operands[0],
+                                                      Ai=operands[0],
+                                                      B=operands[1])]
+        for i in range(2, len(operands)):
+            k.append(self._matrix_multiplication_query.format(A=f"K{i-2}",
+                                                              Ai=f"({k[i-2]}) as K{i - 2}",
+                                                              B=operands[i]))
+        tensor, run_time = self._sqlite.fetch_all_rows(k[-1])
+        return self._2d_tensor_to_matrix(tensor), run_time
 
     def einstein_notation(self, operation, operands):
-        if self._validate_matrix_multiplication(operation):
+        if self._validate_matrix_multiplication(operation, operands):
             print(f"Matrix multiplication on: {','.join(operands)}")
             return self._matrix_multiplication(operands)
+        else:
+            print("Unsupported operation\nCheck Einstein Notation/ Number of operands")
+            return False, 0
 
     def _2d_tensor_to_matrix(self, tensor):
         max_i = max(t[0] for t in tensor) + 1
@@ -75,11 +86,12 @@ class EinsteinNotation:
         return matrix
 
     @staticmethod
-    def _validate_matrix_multiplication(exp):
+    def _validate_matrix_multiplication(exp, ope):
         input_indices, output_indices = exp.split('->')
         input_indices = input_indices.split(',')
         output_indices = output_indices.strip()
         pred_output = f"{input_indices[0][0]}{input_indices[-1][-1]}"
+        if len(input_indices) != len(ope): return False
         if pred_output != output_indices: return False
         for ind in range(len(input_indices)):
             if ind:
@@ -89,23 +101,52 @@ class EinsteinNotation:
         return True
 
 
+def generate_random_matrix(i, j):
+    return [[random.randint(1, 10) for _ in range(j)] for _ in range(i)]
+
+
 if __name__ == "__main__":
     es = EinsteinNotation(int_only=True)
-    A = [[random.randint(1, 100) for _ in range(100)] for _ in range(100)]
-    B = [[random.randint(1, 100) for _ in range(100)] for _ in range(100)]
 
+    # Matrix generation
+    A = generate_random_matrix(2, 3)
+    B = generate_random_matrix(3, 4)
+    C = generate_random_matrix(4, 5)
+    D = generate_random_matrix(5, 6)
+    E = generate_random_matrix(6, 7)
+    F = generate_random_matrix(7, 8)
+    G = generate_random_matrix(8, 9)
+    H = generate_random_matrix(9, 10)
+    I = generate_random_matrix(10, 11)
+    J = generate_random_matrix(11, 12)
+
+    # Tensor creation
     es.create_2d_tensor("A", A)
     es.create_2d_tensor("B", B)
+    es.create_2d_tensor("C", C)
+    es.create_2d_tensor("D", D)
+    es.create_2d_tensor("E", E)
+    es.create_2d_tensor("F", F)
+    es.create_2d_tensor("G", G)
+    es.create_2d_tensor("H", H)
+    es.create_2d_tensor("I", I)
+    es.create_2d_tensor("J", J)
 
-    # print(f"A: {es.get_tensor('A')}\nB: {es.get_tensor('B')}")
-    result = es.einstein_notation("ij,jk->ik", ["A", "B"])
-    print(f"Result= {result}")
-    es.delete_tensor("A")
-    es.delete_tensor("B")
+    # Matrix multiplication
+    e = "ij,jk,kl,lm,mn,no,op,pq,qr,rs->is"
+    tables = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
+    result, rt = es.einstein_notation(e, tables)
+    if result:
+        for t in tables:
+            print(f"{t}: {es.get_tensor(t)}")
+        print(f"SQLite Result: {result}")
+        start_time = time.time()
+        np_result = np.einsum(e, A, B, C, D, E, F, G, H, I, J)
+        end_time = time.time()
+        print(f"Numpy Result: {np_result.tolist()}")
+        print(f"SQLite time: {rt}")
+        print(f"Numpy Time: {format(end_time - start_time, '.5f')}")
+        print(f"Validation: {all(all(element for element in row) for row in result == np_result)}")
 
-    start_time = time.time()
-    np_result = np.einsum("ij,jk->ik", A, B)
-    end_time = time.time()
-    print(f"Numpy Time: {format(end_time - start_time, '.5f')}")
-
-
+        for t in tables:
+            es.delete_tensor(t)

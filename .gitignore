@@ -1,6 +1,5 @@
-/CS 6360 Project  Description - Fall 2023.pdf
-/CS_6360.503-Project-Phase-1.pdf
-/DB_Design_Paper.pdf
-/PACMMOD-V1mod121.mp4
+*.pdf
+*.mp4
+*.db
 venv/
 .idea/
