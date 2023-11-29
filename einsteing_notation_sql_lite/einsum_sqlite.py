@@ -6,7 +6,7 @@ from sqlite_handler import SQLiteHandler
 
 
 class EinsteinNotation:
-    def __init__(self, int_only = False):
+    def __init__(self, int_only=False):
         self._int = int_only
         self._sqlite = SQLiteHandler("einsum.db")
         self._create_2d_tensor_query = ("CREATE TABLE {name} "
@@ -91,8 +91,10 @@ class EinsteinNotation:
         input_indices = input_indices.split(',')
         output_indices = output_indices.strip()
         pred_output = f"{input_indices[0][0]}{input_indices[-1][-1]}"
-        if len(input_indices) != len(ope): return False
-        if pred_output != output_indices: return False
+        if len(input_indices) != len(ope):
+            return False
+        if pred_output != output_indices:
+            return False
         for ind in range(len(input_indices)):
             if ind:
                 if nxt_i != input_indices[ind][0]:
@@ -137,8 +139,8 @@ if __name__ == "__main__":
     tables = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
     result, rt = es.einstein_notation(e, tables)
     if result:
-        for t in tables:
-            print(f"{t}: {es.get_tensor(t)}")
+        for table in tables:
+            print(f"{table}: {es.get_tensor(table)}")
         print(f"SQLite Result: {result}")
         start_time = time.time()
         np_result = np.einsum(e, A, B, C, D, E, F, G, H, I, J)
@@ -148,5 +150,5 @@ if __name__ == "__main__":
         print(f"Numpy Time: {format(end_time - start_time, '.5f')}")
         print(f"Validation: {all(all(element for element in row) for row in result == np_result)}")
 
-        for t in tables:
-            es.delete_tensor(t)
+        for table in tables:
+            es.delete_tensor(table)
