@@ -16,8 +16,16 @@ def validate_matrix_multiplication(exp, ope):
 
 
 def validate_transpose(exp):
+    if '->' not in exp:
+        return False
     input_indices, output_indices = exp.split('->')
     input_indices = input_indices.split(',')[0]
     output_indices = output_indices.strip()
-    x = input_indices == output_indices[::-1]
-    return x
+    return input_indices == output_indices[::-1]
+
+
+def validate_diagonal_sum(exp):
+    if "->" not in exp:
+        print("Output missing! ")
+        return False
+    return exp[1] == exp[0]
