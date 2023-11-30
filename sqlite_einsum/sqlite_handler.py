@@ -32,7 +32,7 @@ class SQLiteHandler:
         end_time = time.time()
         self.connection.commit()
         self._log(f"--- Query executed successfully:\n {query}")
-        self._log(f"--- {format(end_time - start_time, '.5f')} seconds ---\n")
+        self._log(f"--- {format((end_time - start_time)*1000, '.5f')} seconds ---\n")
 
     def fetch_all_rows(self, query):
         start_time = time.time()
@@ -44,7 +44,7 @@ class SQLiteHandler:
             for row in rows:
                 self._log(row)
         self._log(f"--- {format(end_time - start_time, '.5f')} seconds ---\n")
-        return rows, format(end_time - start_time, '.5f')
+        return rows, format((end_time - start_time)*1000, '.5f')
 
     def close_connection(self):
         self.connection.close()
