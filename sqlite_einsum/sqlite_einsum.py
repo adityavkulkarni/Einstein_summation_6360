@@ -3,7 +3,7 @@ import time
 
 import numpy as np
 from sqlite_handler import SQLiteHandler
-from einstein_notation_parsing import *
+from sqlite_einsum.einstein_notation_parsing import *
 
 
 class EinsteinNotation:
